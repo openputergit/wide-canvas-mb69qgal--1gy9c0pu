@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Budget Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <header class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800">Budget Tracker</h1>
+            <p class="text-gray-600">Manage your finances with 5:3:2 ratio</p>
+        </header>
+
+        <!-- Budget Input Section -->
+        <div class="card p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">Set Your Budget</h2>
+            <form id="budgetForm" class="space-y-4">
+                <div>
+                    <label class="block text-gray-700 mb-2">Total Budget Amount</label>
+                    <input type="number" id="totalBudget" class="w-full p-2 border rounded" required>
+                </div>
+                <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition">
+                    Calculate Budget Distribution
+                </button>
+            </form>
+        </div>
+
+        <!-- Budget Distribution -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <div class="card p-4">
+                <h3 class="font-semibold text-gray-800">Necessities (50%)</h3>
+                <p id="necessities" class="text-2xl font-bold text-green-600">$0</p>
+            </div>
+            <div class="card p-4">
+                <h3 class="font-semibold text-gray-800">Wants (30%)</h3>
+                <p id="wants" class="text-2xl font-bold text-blue-600">$0</p>
+            </div>
+            <div class="card p-4">
+                <h3 class="font-semibold text-gray-800">Savings (20%)</h3>
+                <p id="savings" class="text-2xl font-bold text-purple-600">$0</p>
+            </div>
+        </div>
+
+        <!-- Expense Tracking -->
+        <div class="card p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4">Track Expenses</h2>
+            <form id="expenseForm" class="space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-gray-700 mb-2">Category</label>
+                        <select id="expenseCategory" class="w-full p-2 border rounded" required>
+                            <option value="necessities">Necessities</option>
+                            <option value="wants">Wants</option>
+                            <option value="savings">Savings</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 mb-2">Description</label>
+                        <input type="text" id="expenseDescription" class="w-full p-2 border rounded" required>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 mb-2">Amount</label>
+                        <input type="number" id="expenseAmount" class="w-full p-2 border rounded" required>
+                    </div>
+                </div>
+                <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 transition">
+                    Add Expense
+                </button>
+            </form>
+        </div>
+
+        <!-- Analytics -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="card p-6">
+                <h2 class="text-xl font-semibold mb-4">Budget Distribution</h2>
+                <canvas id="budgetChart"></canvas>
+            </div>
+            <div class="card p-6">
+                <h2 class="text-xl font-semibold mb-4">Expense Breakdown</h2>
+                <canvas id="expenseChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Expense History -->
+        <div class="card p-6 mt-8">
+            <h2 class="text-xl font-semibold mb-4">Expense History</h2>
+            <div class="overflow-x-auto">
+                <table class="w-full" id="expenseTable">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize state
+        let currentBudget = {
+            total: 0,
+            necessities: 0,
+            wants: 0,
+            savings: 0
+        };
+        
+        let expenses = [];
+
+        // Initialize Charts
+        const budgetCtx = document.getElementById('budgetChart').getContext('2d');
+        const expenseCtx = document.getElementById('expenseChart').getContext('2d');
+
+        const budgetChart = new Chart(budgetCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Necessities (50%)', 'Wants (30%)', 'Savings (20%)'],
+                datasets: [{
+                    data: [50, 30, 20],
+                    backgroundColor: ['#059669', '#2563EB', '#7C3AED']
+                }]
+            }
+        });
+
+        const expenseChart = new Chart(expenseCtx, {
+            type: 'bar',
+            data: {
+                labels: ['Necessities', 'Wants', 'Savings'],
+                datasets: [{
+                    label: 'Expenses',
+                    data: [0, 0, 0],
+                    backgroundColor: ['#059669', '#2563EB', '#7C3AED']
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+
+        // Handle Budget Form Submission
+        document.getElementById('budgetForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const total = parseFloat(document.getElementById('totalBudget').value);
+            
+            currentBudget = {
+                total: total,
+                necessities: total * 0.5,
+                wants: total * 0.3,
+                savings: total * 0.2
+            };
+
+            // Update display
+            document.getElementById('necessities').textContent = `$${currentBudget.necessities.toFixed(2)}`;
+            document.getElementById('wants').textContent = `$${currentBudget.wants.toFixed(2)}`;
+            document.getElementById('savings').textContent = `$${currentBudget.savings.toFixed(2)}`;
+
+            // Update budget chart
+            budgetChart.data.datasets[0].data = [
+                currentBudget.necessities,
+                currentBudget.wants,
+                currentBudget.savings
+            ];
+            budgetChart.update();
+
+            // Save to localStorage
+            localStorage.setItem('budget', JSON.stringify(currentBudget));
+        });
+
+        // Handle Expense Form Submission
+        document.getElementById('expenseForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const expense = {
+                date: new Date().toISOString().split('T')[0],
+                category: document.getElementById('expenseCategory').value,
+                description: document.getElementById('expenseDescription').value,
+                amount: parseFloat(document.getElementById('expenseAmount').value)
+            };
+
+            expenses.push(expense);
+
+            // Update expense chart
+            const expensesByCategory = {
+                necessities: 0,
+                wants: 0,
+                savings: 0
+            };
+
+            expenses.forEach(exp => {
+                expensesByCategory[exp.category] += exp.amount;
+            });
+
+            expenseChart.data.datasets[0].data = [
+                expensesByCategory.necessities,
+                expensesByCategory.wants,
+                expensesByCategory.savings
+            ];
+            expenseChart.update();
+
+            // Update expense table
+            updateExpenseTable();
+
+            // Save to localStorage
+            localStorage.setItem('expenses', JSON.stringify(expenses));
+
+            // Reset form
+            e.target.reset();
+        });
+
+        function updateExpenseTable() {
+            const tbody = document.querySelector('#expenseTable tbody');
+            tbody.innerHTML = '';
+
+            expenses.forEach(expense => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap">${expense.date}</td>
+                    <td class="px-6 py-4 whitespace-nowrap capitalize">${expense.category}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">${expense.description}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">$${expense.amount.toFixed(2)}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // Load saved data on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const savedBudget = localStorage.getItem('budget');
+            const savedExpenses = localStorage.getItem('expenses');
+
+            if (savedBudget) {
+                currentBudget = JSON.parse(savedBudget);
+                document.getElementById('necessities').textContent = `$${currentBudget.necessities.toFixed(2)}`;
+                document.getElementById('wants').textContent = `$${currentBudget.wants.toFixed(2)}`;
+                document.getElementById('savings').textContent = `$${currentBudget.savings.toFixed(2)}`;
+                budgetChart.data.datasets[0].data = [
+                    currentBudget.necessities,
+                    currentBudget.wants,
+                    currentBudget.savings
+                ];
+                budgetChart.update();
+            }
+
+            if (savedExpenses) {
+                expenses = JSON.parse(savedExpenses);
+                updateExpenseTable();
+
+                const expensesByCategory = {
+                    necessities: 0,
+                    wants: 0,
+                    savings: 0
+                };
+
+                expenses.forEach(exp => {
+                    expensesByCategory[exp.category] += exp.amount;
+                });
+
+                expenseChart.data.datasets[0].data = [
+                    expensesByCategory.necessities,
+                    expensesByCategory.wants,
+                    expensesByCategory.savings
+                ];
+                expenseChart.update();
+            }
+        });
+    </script>
+<script>document.body.addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); return }, { passive: false })</script>
+	</body>
+</html>
